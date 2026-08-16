@@ -1,0 +1,18 @@
+{
+  "name": "hajimi-idle",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "哈基杯-基狗对邦 · 养成小游戏（养哈基米/哈基汪）",
+  "scripts": {
+    "test": "vitest run --pool=threads",
+    "test:watch": "vitest --pool=threads"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.10"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.112.3",
+    "pg": "^8.23.0"
+  }
+}

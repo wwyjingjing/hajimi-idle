@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#ff6fa5" />
+  <title>养哈基米 · 哈基杯-基狗对邦</title>
+  <style>
+    :root {
+      --bg: #fff6ee;
+      --panel: #fffdf8;
+      --accent: #ff9f43;
+      --accent-soft: #ffe4c4;
+      --text: #5b4636;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body {
+      font-family: system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex; flex-direction: column; align-items: center;
+      min-height: 100vh;
+      padding: 10px 10px calc(16px + env(safe-area-inset-bottom));
+      user-select: none; -webkit-user-select: none; touch-action: manipulation;
+    }
+    .screen { width: 100%; max-width: 460px; }
+    .hidden { display: none !important; }
+    button { font-family: inherit; }
+
+    /* 选边页 */
+    .screen-faction { text-align: center; padding-top: 8vh; }
+    .screen-faction h1 { font-size: 26px; margin: 8px 0 4px; }
+    .screen-faction .sub { color: #aaa; font-size: 14px; }
+    .screen-faction .pick-hint { margin: 30px 0 16px; font-size: 16px; font-weight: 700; }
+    .faction-cards { display: flex; gap: 12px; }
+    .faction-card {
+      flex: 1; border: 2px solid transparent; border-radius: 16px; padding: 20px 10px;
+      background: var(--panel); cursor: pointer; display: flex; flex-direction: column; gap: 6px;
+      box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+    }
+    .faction-card.kimi { border-color: #ff9ecb; }
+    .faction-card.dog { border-color: #8aa8ff; }
+    .faction-card .fc-emoji { font-size: 44px; }
+    .faction-card .fc-name { font-size: 18px; font-weight: 800; }
+    .faction-card .fc-tag { font-size: 12px; color: #999; }
+
+    /* 主界面 */
+    header.bar { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .brand { font-size: 16px; font-weight: 700; flex: 1; }
+    .badge { font-size: 13px; font-weight: 700; background: var(--accent); color: #fff; border-radius: 999px; padding: 4px 12px; }
+    .icon-btn { border: none; background: var(--accent-soft); color: var(--text); width: 34px; height: 34px; border-radius: 10px; font-size: 17px; cursor: pointer; }
+
+    .count-panel { text-align: center; background: var(--panel); border-radius: 16px; padding: 20px 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-bottom: 10px; }
+    .count-panel .form { font-size: 18px; font-weight: 800; color: var(--accent); }
+    .count-panel .count { font-size: 40px; font-weight: 900; line-height: 1.2; word-break: break-all; }
+    .count-panel .meta { font-size: 13px; color: #999; margin-top: 4px; }
+
+    .feed-btn {
+      width: 100%; border: none; border-radius: 999px; cursor: pointer;
+      background: linear-gradient(135deg, var(--accent), #ff7b3d);
+      color: #fff; font-size: 20px; font-weight: 800; padding: 20px 0;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.16); margin-bottom: 12px;
+    }
+    .feed-btn:active { transform: scale(0.98); }
+    /* 连点器运行中：喂食按钮高频脉冲 */
+    .feed-btn.auto { animation: autoFeed 0.2s ease-in-out infinite; }
+    @keyframes autoFeed { 0%, 100% { transform: scale(1); } 40% { transform: scale(0.94); } }
+
+    /* 狂暴金边：触发后整体 UI 镶金边呼吸发光 */
+    #rapture-frame {
+      position: fixed; inset: 6px; border: 3px solid #ffd700; border-radius: 20px;
+      box-shadow: 0 0 36px rgba(255, 215, 0, 0.75), inset 0 0 36px rgba(255, 215, 0, 0.28);
+      pointer-events: none; z-index: 25; opacity: 0; transition: opacity 0.3s;
+    }
+    #rapture-frame.show { opacity: 1; animation: goldPulse 1.5s ease-in-out infinite; }
+    @keyframes goldPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+
+    /* 喂食飘字：+N 上浮淡出 */
+    .count-float {
+      position: fixed; font-weight: 900; color: #ff7b3d; font-size: 20px;
+      text-shadow: 0 0 8px rgba(255, 123, 61, 0.7), 0 1px 2px rgba(0,0,0,0.3);
+      pointer-events: none; z-index: 40; animation: floatUp 0.8s ease-out forwards;
+    }
+    @keyframes floatUp { 0% { transform: translateY(0); opacity: 1; } 100% { transform: translateY(-48px); opacity: 0; } }
+
+    .supply { background: var(--panel); border-radius: 14px; padding: 12px; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+    .btn-supply { width: 100%; border: none; border-radius: 999px; cursor: pointer; background: linear-gradient(135deg, var(--accent), #ff7b3d); color: #fff; font-size: 16px; font-weight: 700; padding: 13px 0; }
+    .btn-supply:disabled { opacity: 0.6; }
+    .supply-meta { margin-top: 8px; font-size: 12px; color: #999; text-align: center; }
+    .loader { margin-top: 8px; font-size: 13px; color: var(--accent); text-align: center; }
+
+    .buy-amt.active { background: var(--accent) !important; color: #fff !important; }
+
+    .pools { display: flex; flex-direction: column; gap: 8px; }
+    .pool-row {
+      display: flex; align-items: center; gap: 10px;
+      background: var(--panel); border-radius: 12px; padding: 10px 12px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    }
+    .pool-row .info { flex: 1; }
+    .pool-row .name { font-size: 15px; font-weight: 700; }
+    .pool-row .desc { font-size: 12px; color: #999; }
+    .pool-icon { width: 32px; height: 32px; flex-shrink: 0; }
+    .pool-icon svg { width: 100%; height: 100%; display: block; }
+    .boost-entry { font-size: 12px; line-height: 1.5; }
+    .pool-row .owned { font-size: 13px; font-weight: 700; color: var(--accent); margin-right: 4px; }
+    .buy-btn {
+      border: none; border-radius: 10px; padding: 8px 14px; cursor: pointer;
+      background: var(--accent); color: #fff; font-size: 13px; font-weight: 700;
+      min-width: 72px; text-align: center;
+    }
+    .buy-btn:disabled { opacity: 0.5; }
+    .buy-btn .cost { display: block; font-size: 11px; font-weight: 400; opacity: 0.9; }
+
+    /* 遮罩 */
+    .overlay { display: none; position: fixed; inset: 0; z-index: 30; background: rgba(0,0,0,0.55); align-items: center; justify-content: center; padding: 20px; }
+    .overlay.show { display: flex; }
+    /* 昵称弹窗需要置顶（在排行榜之上） */
+    #overlay-nickname { z-index: 35; }
+    .card { background: var(--bg); color: var(--text); border-radius: 18px; padding: 18px; width: 100%; max-width: 400px; text-align: center; box-shadow: 0 8px 30px rgba(0,0,0,0.25); }
+    .card h2 { font-size: 20px; margin-bottom: 8px; }
+    .card p { font-size: 15px; color: #666; margin-bottom: 12px; }
+    .btn { border: none; border-radius: 999px; padding: 12px 24px; font-size: 16px; font-weight: 700; cursor: pointer; background: var(--accent); color: #fff; }
+    .overlay-card { display: flex; flex-direction: column; max-height: 92vh; }
+    .overlay-scroll { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+    .overlay-back { border: none; background: var(--accent-soft); color: var(--text); width: 34px; height: 34px; border-radius: 10px; font-size: 16px; cursor: pointer; flex-shrink: 0; }
+
+    #toast { position: fixed; left: 50%; bottom: calc(28px + env(safe-area-inset-bottom)); transform: translateX(-50%) translateY(20px); background: rgba(20,20,20,0.9); color: #fff; font-size: 14px; padding: 10px 18px; border-radius: 999px; opacity: 0; pointer-events: none; transition: all 0.25s ease; z-index: 60; max-width: 90vw; }
+    #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  </style>
+</head>
+<body>
+  <!-- 选边页 -->
+  <div id="screen-faction" class="screen screen-faction">
+    <h1>🐾 养哈基米</h1>
+    <p class="sub">哈基杯-基狗对邦 · 应援补给站</p>
+    <p class="sub">v0.63</p>
+    <p class="pick-hint">选择你的阵营，开始养</p>
+    <div class="faction-cards">
+      <button class="faction-card kimi" data-faction="kimi">
+        <span class="fc-emoji">🐱</span><span class="fc-name">基米队</span><span class="fc-tag">养哈基米</span>
+      </button>
+      <button class="faction-card dog" data-faction="dog">
+        <span class="fc-emoji">🐶</span><span class="fc-name">大狗队</span><span class="fc-tag">养哈基汪</span>
+      </button>
+    </div>
+    <p class="sub" style="margin-top:24px;">喂食繁殖 · 买池挂机 · 养到 1 亿亿亿通关</p>
+  </div>
+
+  <!-- 主界面 -->
+  <div id="screen-game" class="screen hidden">
+    <header class="bar">
+      <div class="brand">🐾 养哈基米</div>
+      <span class="badge" id="badge-faction">基米队</span>
+      <button class="icon-btn" id="btn-settings" aria-label="设置">⚙️</button>
+    </header>
+
+    <div class="news-bar" id="news-bar" style="background:var(--accent-soft);color:var(--text);border-radius:10px;padding:7px 10px;font-size:13px;margin-bottom:8px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;">🐾 保护小动物，从繁殖开始</div>
+
+    <div class="count-panel">
+      <div class="form" id="form-name">奶团基米</div>
+      <img id="animal-img" alt="动物形象" style="width:96px;height:96px;margin:6px auto;display:none;border-radius:16px;background:var(--accent-soft);" />
+      <div class="count" id="count">0</div>
+      <div class="meta">每秒 <span id="cps">0</span> 只 · 累计养过 <span id="total">0</span> 只</div>
+      <div class="boost-entry" id="boost-task" style="margin-top:6px;color:var(--accent);font-weight:700;"></div>
+      <div class="boost-entry" id="boost-video" style="color:var(--accent);font-weight:700;"></div>
+      <div class="boost-entry" id="boost-shop" style="color:var(--accent);font-weight:700;"></div>
+      <div class="boost-entry" id="boost-rapture" style="color:#e85d3f;font-weight:700;"></div>
+      <div class="boost-entry" id="boost-clicker" style="color:#4f7cff;font-weight:700;"></div>
+      <div class="boost-entry" id="boost-pending" style="color:#999;font-size:11px;"></div>
+    </div>
+
+    <button class="feed-btn" id="btn-feed">🥣 喂一口</button>
+
+    <section class="supply">
+      <button class="btn-supply" id="btn-supply">📣 去看应援，点击即领加速</button>
+      <div class="supply-meta">
+        <span id="supply-remaining">今日补给剩余 20 次</span>
+        <div style="font-size:11px;color:#999;margin-top:2px;">🤝 君子协定：点击即结算，是否观看全凭自觉</div>
+      </div>
+    </section>
+
+    <div style="display:flex;gap:6px;margin-bottom:8px;">
+      <button class="buy-amt active" data-amt="1" style="flex:1;border:none;border-radius:10px;padding:8px 0;background:var(--panel);color:var(--text);font-weight:700;cursor:pointer;">买 ×1</button>
+      <button class="buy-amt" data-amt="10" style="flex:1;border:none;border-radius:10px;padding:8px 0;background:var(--panel);color:var(--text);font-weight:700;cursor:pointer;">买 ×10</button>
+      <button class="buy-amt" data-amt="100" style="flex:1;border:none;border-radius:10px;padding:8px 0;background:var(--panel);color:var(--text);font-weight:700;cursor:pointer;">买 ×100</button>
+    </div>
+
+    <div class="pools" id="pools"></div>
+    <div id="pool-next-hint" class="hidden" style="margin-top:8px;padding:8px 12px;background:var(--accent-soft);color:var(--text);border-radius:10px;font-size:12px;font-weight:700;"></div>
+
+    <nav class="tabs" style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
+      <button class="tab-btn" id="btn-shop" style="flex:1;min-width:70px;border:none;border-radius:12px;padding:11px 0;background:var(--panel);color:var(--text);font-weight:700;cursor:pointer;">🛒 商店</button>
+      <button class="tab-btn" id="btn-backpack" style="flex:1;min-width:70px;border:none;border-radius:12px;padding:11px 0;background:var(--panel);color:var(--text);font-weight:700;cursor:pointer;">🎒 背包</button>
+      <button class="tab-btn" id="btn-tasks" style="flex:1;min-width:70px;border:none;border-radius:12px;padding:11px 0;background:var(--panel);color:var(--text);font-weight:700;cursor:pointer;">📋 任务</button>
+      <button class="tab-btn" id="btn-achievements" style="flex:1;min-width:70px;border:none;border-radius:12px;padding:11px 0;background:var(--panel);color:var(--text);font-weight:700;cursor:pointer;">🏆 成就</button>
+      <button class="tab-btn" id="btn-leaderboard" style="flex:1;min-width:70px;border:none;border-radius:12px;padding:11px 0;background:var(--panel);color:var(--text);font-weight:700;cursor:pointer;">🏅 排行</button>
+      <button class="tab-btn" id="btn-collection" style="flex:1;min-width:70px;border:none;border-radius:12px;padding:11px 0;background:var(--panel);color:var(--text);font-weight:700;cursor:pointer;">📖 图鉴</button>
+      <button class="tab-btn" id="btn-share" style="flex:1;min-width:70px;border:none;border-radius:12px;padding:11px 0;background:var(--panel);color:var(--text);font-weight:700;cursor:pointer;">📤 分享</button>
+    </nav>
+
+    <section style="display:flex;align-items:center;gap:8px;background:var(--panel);border-radius:14px;padding:10px 12px;margin-top:12px;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+      <button class="btn-board" id="btn-board" style="flex:1;border:none;border-radius:999px;background:linear-gradient(135deg,#4f7cff,#7a4fd9);color:#fff;font-size:15px;font-weight:700;padding:12px 0;cursor:pointer;">📊 对邦看板</button>
+      <div style="text-align:right;font-size:11px;color:#999;line-height:1.4;">
+        <div>官方QQ群</div>
+        <div style="font-size:14px;color:var(--accent);font-weight:800;cursor:pointer;" id="btn-group">765996335</div>
+      </div>
+    </section>
+  </div>
+
+  <!-- 通关 -->
+  <div class="overlay" id="overlay-clear">
+    <div class="card">
+      <h2>🎉 亿亿亿达成！</h2>
+      <p>你把 <span id="clear-form">哈基米</span> 养到了 1 亿亿亿只！</p>
+      <button class="btn" id="btn-clear-close">继续无限养</button>
+    </div>
+  </div>
+
+  <!-- 离线收益 -->
+  <div class="overlay" id="overlay-offline">
+    <div class="card">
+      <h2>🌙 离线收益</h2>
+      <p>离开期间，它们又生出了 <strong id="offline-gains">0</strong> 只</p>
+      <button class="btn" id="btn-offline-close">收下</button>
+    </div>
+  </div>
+
+  <!-- 设置 -->
+  <div class="overlay" id="overlay-settings">
+    <div class="card">
+      <h2>⚙️ 设置</h2>
+      <p style="font-size:14px;">当前阵营：<strong id="s-current"></strong></p>
+      <div style="display:flex;gap:10px;margin:10px 0;">
+        <button class="btn" data-faction="kimi" style="flex:1;">🐱 基米队</button>
+        <button class="btn" data-faction="dog" style="flex:1;">🐶 大狗队</button>
+      </div>
+      <p style="font-size:12px;color:#999;">换边不丢进度（数量/池子/基因全部保留）。</p>
+      <button class="btn" id="btn-settings-close" style="background:#aaa;margin-top:8px;">关闭</button>
+    </div>
+  </div>
+
+  <!-- 任务 -->
+  <div class="overlay" id="overlay-tasks">
+    <div class="card overlay-card" style="text-align:left;">
+      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;margin-bottom:6px;">
+        <button class="overlay-back" data-overlay="overlay-tasks" aria-label="返回">←</button>
+        <h2 style="flex:1;margin:0;font-size:18px;">📋 任务</h2>
+      </div>
+      <div class="overlay-scroll">
+        <p style="text-align:center;font-size:12px;color:#999;">完成任务领任务加速卡（×2 持续 30 分钟）</p>
+        <div id="task-daily"></div>
+        <div style="border-top:1px dashed #ddd;margin:10px 0;"></div>
+        <div id="task-mainline"></div>
+      </div>
+      <button class="btn" id="btn-tasks-close" style="background:#aaa;margin-top:10px;width:100%;flex-shrink:0;">关闭</button>
+    </div>
+  </div>
+
+  <!-- 成就 -->
+  <div class="overlay" id="overlay-achievements">
+    <div class="card overlay-card">
+      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;margin-bottom:6px;">
+        <button class="overlay-back" data-overlay="overlay-achievements" aria-label="返回">←</button>
+        <h2 style="flex:1;margin:0;font-size:18px;">🏆 成就</h2>
+      </div>
+      <div class="overlay-scroll">
+        <div id="achievements-grid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;"></div>
+      </div>
+      <button class="btn" id="btn-achievements-close" style="background:#aaa;margin-top:10px;width:100%;flex-shrink:0;">关闭</button>
+    </div>
+  </div>
+
+  <!-- 图鉴 -->
+  <div class="overlay" id="overlay-collection">
+    <div class="card overlay-card">
+      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;margin-bottom:6px;">
+        <button class="overlay-back" data-overlay="overlay-collection" aria-label="返回">←</button>
+        <h2 style="flex:1;margin:0;font-size:18px;">📖 藏品图鉴 <span id="c-progress" style="font-size:14px;color:#999;"></span></h2>
+      </div>
+      <div class="overlay-scroll">
+        <div id="collection-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;"></div>
+        <h3 style="margin:14px 0 6px;font-size:14px;">🐾 种群统计（各性状哈基米数量）</h3>
+        <div id="population-list" style="display:flex;flex-direction:column;gap:6px;"></div>
+      </div>
+      <button class="btn" id="btn-collection-close" style="background:#aaa;margin-top:10px;width:100%;flex-shrink:0;">关闭</button>
+    </div>
+  </div>
+
+  <!-- 商店 -->
+  <div class="overlay" id="overlay-shop">
+    <div class="card overlay-card" style="text-align:left;">
+      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;margin-bottom:6px;">
+        <button class="overlay-back" data-overlay="overlay-shop" aria-label="返回">←</button>
+        <h2 style="flex:1;margin:0;font-size:18px;">🛒 商店 <span id="shop-balance" style="font-size:13px;color:#999;"></span></h2>
+      </div>
+      <div class="overlay-scroll">
+        <div id="shop-body"></div>
+      </div>
+      <button class="btn" id="btn-shop-close" style="background:#aaa;margin-top:10px;width:100%;flex-shrink:0;">关闭</button>
+    </div>
+  </div>
+
+  <!-- 背包 -->
+  <div class="overlay" id="overlay-backpack">
+    <div class="card overlay-card" style="text-align:left;">
+      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;margin-bottom:6px;">
+        <button class="overlay-back" data-overlay="overlay-backpack" aria-label="返回">←</button>
+        <h2 style="flex:1;margin:0;font-size:18px;">🎒 背包</h2>
+      </div>
+      <div class="overlay-scroll">
+        <p style="text-align:center;font-size:12px;color:#999;">你持有的加速道具与永久加成</p>
+        <div id="backpack-body"></div>
+      </div>
+      <button class="btn" id="btn-backpack-close" style="background:#aaa;margin-top:10px;width:100%;flex-shrink:0;">关闭</button>
+    </div>
+  </div>
+
+  <!-- 分享 -->
+  <div class="overlay" id="overlay-share">
+    <div class="card overlay-card">
+      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;margin-bottom:6px;">
+        <button class="overlay-back" data-overlay="overlay-share" aria-label="返回">←</button>
+        <h2 style="flex:1;margin:0;font-size:18px;">📤 分享战绩</h2>
+      </div>
+      <div class="overlay-scroll">
+        <div class="share-tabs" style="display:flex;gap:6px;margin-bottom:8px;">
+          <button class="share-variant active" data-variant="taunt" style="flex:1;border:none;border-radius:8px;padding:8px 0;background:var(--accent-soft);color:var(--text);font-weight:700;cursor:pointer;">阵营挑衅</button>
+          <button class="share-variant" data-variant="flaunt" style="flex:1;border:none;border-radius:8px;padding:8px 0;background:var(--accent-soft);color:var(--text);font-weight:700;cursor:pointer;">战果炫耀</button>
+        </div>
+        <p id="share-text" style="font-size:14px;line-height:1.6;background:#fff;border-radius:8px;padding:10px;color:#444;word-break:break-all;"></p>
+        <div style="display:flex;gap:8px;margin-top:10px;">
+          <button class="btn" id="btn-copy" style="flex:1;">📋 复制</button>
+          <button class="btn" id="btn-share-image" style="flex:1;">🖼 晒图</button>
+        </div>
+        <img id="share-image-img" alt="晒图" style="width:100%;border-radius:12px;display:none;margin-top:10px;" />
+        <button class="btn" id="btn-download" style="background:#4f7cff;margin-top:8px;width:100%;display:none;">💾 保存图片</button>
+      </div>
+      <button class="btn" id="btn-share-close" style="background:#aaa;margin-top:10px;width:100%;flex-shrink:0;">关闭</button>
+    </div>
+  </div>
+
+  <!-- 昵称弹窗：首次设置 / 修改名字 复用 -->
+  <div class="overlay" id="overlay-nickname">
+    <div class="card overlay-card">
+      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;margin-bottom:6px;">
+        <button class="overlay-back" data-overlay="overlay-nickname" aria-label="返回">←</button>
+        <h2 id="nickname-title" style="flex:1;margin:0;font-size:18px;">🏅 加入排行榜</h2>
+      </div>
+      <div class="overlay-scroll" style="text-align:left;">
+        <p id="nickname-desc" style="font-size:13px;color:#666;">填个昵称就能上排行榜（1~16 字）</p>
+        <input id="nickname-input" maxlength="16" placeholder="你的昵称" style="width:100%;box-sizing:border-box;border:2px solid var(--accent-soft);border-radius:10px;padding:10px;font-size:15px;outline:none;" />
+      </div>
+      <button class="btn" id="btn-nickname-submit" style="margin-top:10px;width:100%;flex-shrink:0;">确定上榜</button>
+    </div>
+  </div>
+
+  <!-- 排行榜 -->
+  <div class="overlay" id="overlay-leaderboard">
+    <div class="card overlay-card">
+      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;margin-bottom:6px;">
+        <button class="overlay-back" data-overlay="overlay-leaderboard" aria-label="返回">←</button>
+        <h2 style="flex:1;margin:0;font-size:18px;">🏅 哈基杯排行榜</h2>
+      </div>
+      <div class="overlay-scroll">
+        <div style="display:flex;gap:6px;margin-bottom:8px;">
+          <button class="lb-tab active" data-faction="all" style="flex:1;border:none;border-radius:8px;padding:8px 0;background:var(--accent);color:#fff;font-weight:700;cursor:pointer;">总榜</button>
+          <button class="lb-tab" data-faction="kimi" style="flex:1;border:none;border-radius:8px;padding:8px 0;background:var(--accent-soft);color:var(--text);font-weight:700;cursor:pointer;">🐱 基米队</button>
+          <button class="lb-tab" data-faction="dog" style="flex:1;border:none;border-radius:8px;padding:8px 0;background:var(--accent-soft);color:var(--text);font-weight:700;cursor:pointer;">🐶 大狗队</button>
+        </div>
+        <div id="lb-mine" style="font-size:13px;font-weight:700;color:var(--accent);padding:6px 0;"></div>
+        <div id="lb-list"></div>
+      </div>
+      <button class="btn" id="btn-leaderboard-close" style="background:#aaa;margin-top:10px;width:100%;flex-shrink:0;">关闭</button>
+    </div>
+  </div>
+
+  <div id="rapture-frame"></div>
+  <div id="toast"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="./app.bundle.js"></script>
+</body>
+</html>
