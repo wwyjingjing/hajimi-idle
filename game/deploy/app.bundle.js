@@ -1717,7 +1717,7 @@ async function renderLeaderboard() {
       ? rows.map((r, i) => `<div style="display:flex;align-items:center;gap:8px;padding:9px 6px;border-bottom:1px dashed #eee;${r.player_id === playerId ? 'background:var(--accent-soft);border-radius:10px;' : ''}">
           <span style="width:26px;font-weight:800;font-size:14px;color:${i < 3 ? 'var(--accent)' : '#999'};">${i + 1}</span>
           <span style="flex:1;min-width:0;">
-            <span style="display:flex;align-items:center;gap:4px;font-weight:700;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.player_id === playerId ? '⭐ ' : ''}${escHtml(r.nickname || '神秘玩家')}<span style="font-size:10px;color:#bbb;font-weight:600;flex-shrink:0;">#${shortPlayerId(r.player_id)}</span></span>
+            <span style="display:flex;align-items:center;gap:4px;font-weight:700;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.player_id === playerId ? '⭐ ' : ''}${escHtml(r.nickname || '神秘玩家')}${r.player_id === playerId && shortPlayerId(r.player_id) ? `<span style="font-size:10px;color:#bbb;font-weight:600;flex-shrink:0;">#${shortPlayerId(r.player_id)}</span>` : ''}</span>
             <span style="font-size:11px;color:${r.faction === 'kimi' ? '#ff6fa5' : '#4f7cff'};font-weight:600;">${r.faction === 'kimi' ? '🐱 基米队' : '🐶 大狗队'}</span>
           </span>
           <span style="font-weight:800;color:var(--accent);font-size:13px;flex-shrink:0;">${fmt(r.total_produced)}</span>
