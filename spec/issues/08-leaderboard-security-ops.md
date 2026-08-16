@@ -240,14 +240,14 @@ update public.players set created_at = now() - interval '3 days' where id = 'uui
 
 | 数值 | 值 | 含义 |
 |------|-----|------|
-| rate_cap | 1e12/s | 速率上限：total ≤ 账号年龄(秒) × 1e12 |
+| rate_cap | 1e14/s | 速率上限：total ≤ 账号年龄(秒) × 1e14（2026-08-16 定稿：1e12→1e13→1e14，覆盖连点器+狂暴+三通道满配峰值 2.8e13/s） |
 | 绝对上限 | 1e18 | total 超过即拒（纯兜底） |
 | form_level | 0~24 | 服务端按 total 重算（= 进化等级） |
 | 昵称长度 | 1~16 字 | players 表 check 约束 |
 | faction | kimi / dog | 白名单枚举 |
 | 榜单长度 | top 100 | CONFIG.leaderboard.topN |
 | 上报频率 | 每 10s + pagehide | 前端 submitScore 节流 |
-| 正常玩家速率 | ~1e10~1e11/s | 观察值，裕量 10~100 倍 |
+| 正常玩家速率 | ~1e10~1e11/s | 挂机观察值；满配峰值 ~2.8e13/s（连点器×狂暴×三通道） |
 
 ---
 
@@ -324,3 +324,25 @@ update public.players set created_at = now() - interval '3 days' where id = 'uui
 
 **最终拉黑名单（本日有效）**：仅 `曼波波波养猫代肝加vx`、`回归审计勿删` 两个（昵称自曝 + 数值人为凑整，且无玩家申诉）。
 **观察名单清空**：`cai`、`Ab_Wesker`、`养猫科技.一键登顶.稳定不封.代` 已确认正常移出；`Cirno`、`我是谁压实度` 经运营确认为正常玩家，一并移出观察名单（未拉黑过，无实际影响，仅文档清除）。
+
+---
+
+### 2026-08-16（同日）rate_cap 二度放宽：1e13 → 1e14（防满配玩家分数被卡）
+
+**背景**：rate_cap=1e12 放宽到 1e13 后，实测仍误伤重度玩家：
+- `大狗114`（正常玩家，满配连点器+狂暴+三通道）：实际 9e16，榜上仅 3.17e16（≈30%）
+  → 实际速率 1.8e13/s > 1e13 上限 → 每次上报被 `rate implausible` 拒绝 → 分数冻结在最后一次通过值
+- `cai` 速率 5.8e12/s 逼近 1e13 上限（⚠️）
+
+**处置**：rate_cap 1e13 → **1e14**（覆盖正常玩家满配峰值 2.8e13/s 的 3.5 倍裕量）：
+```sql
+rate_cap constant numeric := 1e14;
+-- 另补：UPDATE 时 new.updated_at = now()（修复 updated_at 不刷新，便于运营判断活跃度）
+```
+- 执行后 `大狗114` 下次上报即追平实际分数 ✅
+- 防作弊底线不变：created_at 服务端锚点 + 只增不减 + 绝对上限 1e18
+
+**教训**：
+- 速率核算的 rate_cap 必须覆盖「正常玩法的合法峰值」（含连点器×狂暴×三通道），否则重度玩家被误伤；
+  防作弊真正靠 created_at 锚点（养号必须真等）+ 只增不减，rate_cap 是「宽松兜底」而非「严格闸门」。
+- `scores.updated_at` 原设计 `default now()` 只在 INSERT 生效，UPDATE 不刷新——用它判断活跃度会误导（cai 的 total 一直在涨但 updated_at 停在 15h 前）；已在触发器补 `new.updated_at = now()`。

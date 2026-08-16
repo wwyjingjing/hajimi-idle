@@ -67,15 +67,17 @@ grant update (total_produced, count, play_seconds) on public.scores to anon, aut
 --    · 绝对上限 1e18（纯兜底；速率核算才是真约束。早期 1e15 上限会锁住逼近的头部玩家，已抬升）
 --    · 速率核算用「账号年龄」（created_at 服务端权威、与客户端版本/play_seconds 无关，不会误锁）
 --      ——注意：早期版本用客户端 play_seconds 核算，旧客户端不传该字段导致全部误锁，已废弃
---      ——注意2：rate_cap 原 1e12，2026-08-16 放宽到 1e13（连点器+狂暴+三通道峰值 ~2.8e13/s，
---        原值会误拒正常头部玩家导致分数冻结+玩家恐慌；10 倍裕量仍远高于观察值 1e10~1e11/s）
+--      ——注意2：rate_cap 历经调整：1e12(2026-08-16 前) → 1e13(误伤连点器+狂暴玩家) → 1e14(最终，
+--        大狗114 实测满配峰值 1.8e13/s 仍被 1e13 卡住；1e14 覆盖正常玩家峰值 2.8e13/s 的 3.5 倍，
+--        同时 created_at 锚点 + 只增不减仍约束作弊者)
 --    · 无增量锁（早期增量 ≤1e14 会锁住高产能玩家追涨，已移除；速率核算已覆盖其防作弊作用）
 --    · 只增不减；form_level 由服务端按 total 重算（与进化等级一致，客户端伪造无效）
+--    · updated_at 在 UPDATE 时刷新（new.updated_at = now()），便于运营判断活跃度
 create or replace function public.keep_max_score()
 returns trigger language plpgsql security definer set search_path = public as $func$
 declare
   acct_age numeric;
-  rate_cap constant numeric := 1e13;  -- 已放宽：1e12 → 1e13（2026-08-16）
+  rate_cap constant numeric := 1e14;  -- 已放宽：1e12 → 1e13 → 1e14（2026-08-16 定稿）
 begin
   if exists (select 1 from public.players where id = new.player_id and coalesce(banned, false)) then
     raise exception 'player banned';
@@ -83,7 +85,8 @@ begin
   if new.total_produced > 1e18 then
     raise exception 'score beyond ceiling';
   end if;
-  -- 速率核算：total ≤ 账号年龄 × 1e13（正常玩家产能观察值 ~1e10~1e11/s，裕量充足）
+  -- 速率核算：total ≤ 账号年龄 × 1e14（正常玩家产能观察值 ~1e10~1e11/s，
+  --  连点器+狂暴+三通道满配峰值 ~2.8e13/s，1e14 留 3.5 倍裕量）
   select coalesce(extract(epoch from now()) - extract(epoch from created_at), 0)
     into acct_age from public.players where id = new.player_id;
   if new.total_produced > acct_age * rate_cap then
@@ -92,6 +95,7 @@ begin
   if tg_op = 'UPDATE' then
     new.total_produced = greatest(new.total_produced, old.total_produced);
     new.count = greatest(new.count, old.count);
+    new.updated_at = now();
   end if;
   new.form_level = least(greatest(floor(log(new.total_produced) / log(10))::int, 0), 24);
   return new;
