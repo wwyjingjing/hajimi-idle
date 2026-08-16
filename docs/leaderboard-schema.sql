@@ -67,9 +67,9 @@ grant update (total_produced, count, play_seconds) on public.scores to anon, aut
 --    · 绝对上限 1e18（纯兜底；速率核算才是真约束。早期 1e15 上限会锁住逼近的头部玩家，已抬升）
 --    · 速率核算用「账号年龄」（created_at 服务端权威、与客户端版本/play_seconds 无关，不会误锁）
 --      ——注意：早期版本用客户端 play_seconds 核算，旧客户端不传该字段导致全部误锁，已废弃
---      ——注意2：rate_cap 历经调整：1e12(2026-08-16 前) → 1e13(误伤连点器+狂暴玩家) → 1e14(最终，
---        大狗114 实测满配峰值 1.8e13/s 仍被 1e13 卡住；1e14 覆盖正常玩家峰值 2.8e13/s 的 3.5 倍，
---        同时 created_at 锚点 + 只增不减仍约束作弊者)
+--      ——注意2：rate_cap 历经调整：1e12(2026-08-16 前) → 1e13(误伤连点器+狂暴玩家) → 1e14(大狗114
+--        案例) → 1e17(2026-08-16 两步走第一步止血：正常玩家满配峰值 ~2.8e13/s，1e17 有 3500 倍裕量，
+--        正常玩家永不撞墙；反作弊将切换为「服务端权威重算」方案，见 docs/server-authoritative-schema.sql)
 --    · 无增量锁（早期增量 ≤1e14 会锁住高产能玩家追涨，已移除；速率核算已覆盖其防作弊作用）
 --    · 只增不减；form_level 由服务端按 total 重算（与进化等级一致，客户端伪造无效）
 --    · updated_at 在 UPDATE 时刷新（new.updated_at = now()），便于运营判断活跃度
@@ -79,7 +79,7 @@ create or replace function public.keep_max_score()
 returns trigger language plpgsql security definer set search_path = public as $func$
 declare
   acct_age numeric;
-  rate_cap constant numeric := 1e14;  -- 已放宽：1e12 → 1e13 → 1e14（2026-08-16 定稿）
+  rate_cap constant numeric := 1e17;  -- 止血值：1e14 → 1e17（2026-08-16 两步走第一步）
 begin
   if exists (select 1 from public.players where id = new.player_id and coalesce(banned, false)) then
     raise exception 'player banned';
