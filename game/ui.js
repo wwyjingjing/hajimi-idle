@@ -812,10 +812,7 @@ async function submitScore(force = false) {
     const u = await sb.from('scores').update(payload).eq('player_id', playerId);
     if (u.error) {
       console.warn('[排行榜] UPDATE 失败:', u.error);
-      // 检查是否是触发器拒绝（如速率不合理）
-      if (u.error.message && u.error.message.includes('rate implausible')) {
-        toast('⚠️ 分数异常，已暂停上报。请联系管理员。');
-      }
+      // 上报失败：静默降级（网络/云端瞬时拒绝都不打断游戏；下个周期自动重试）
       throw u.error;
     }
     if (!u.data || u.data.length === 0) {
@@ -823,9 +820,6 @@ async function submitScore(force = false) {
       const i = await sb.from('scores').insert({ player_id: playerId, ...payload });
       if (i.error) {
         console.warn('[排行榜] INSERT 失败:', i.error);
-        if (i.error.message && i.error.message.includes('rate implausible')) {
-          toast('⚠️ 分数异常，已暂停上报。请联系管理员。');
-        }
         throw i.error;
       }
     } else {
@@ -843,6 +837,12 @@ async function submitScore(force = false) {
 
 function escHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+/** 玩家短 ID：取 player_id（UUID）前 6 位大写，用于区分同名玩家。 */
+function shortPlayerId(pid) {
+  if (!pid || typeof pid !== 'string') return '';
+  return pid.replace(/-/g, '').slice(0, 6).toUpperCase();
 }
 
 async function renderLeaderboard() {
@@ -863,19 +863,21 @@ async function renderLeaderboard() {
     listEl.innerHTML = rows.length
       ? rows.map((r, i) => `<div style="display:flex;align-items:center;gap:8px;padding:9px 6px;border-bottom:1px dashed #eee;${r.player_id === playerId ? 'background:var(--accent-soft);border-radius:10px;' : ''}">
           <span style="width:26px;font-weight:800;font-size:14px;color:${i < 3 ? 'var(--accent)' : '#999'};">${i + 1}</span>
-          <span style="flex:1;font-weight:700;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.player_id === playerId ? '⭐ ' : ''}${escHtml(r.nickname || '神秘玩家')}</span>
-          <span style="font-size:13px;">${r.faction === 'kimi' ? '🐱' : '🐶'}</span>
-          <span style="font-weight:800;color:var(--accent);font-size:13px;">${fmt(r.total_produced)}</span>
+          <span style="flex:1;min-width:0;">
+            <span style="display:flex;align-items:center;gap:4px;font-weight:700;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.player_id === playerId ? '⭐ ' : ''}${escHtml(r.nickname || '神秘玩家')}<span style="font-size:10px;color:#bbb;font-weight:600;flex-shrink:0;">#${shortPlayerId(r.player_id)}</span></span>
+            <span style="font-size:11px;color:${r.faction === 'kimi' ? '#ff6fa5' : '#4f7cff'};font-weight:600;">${r.faction === 'kimi' ? '🐱 基米队' : '🐶 大狗队'}</span>
+          </span>
+          <span style="font-weight:800;color:var(--accent);font-size:13px;flex-shrink:0;">${fmt(r.total_produced)}</span>
         </div>`).join('')
       : '<div style="padding:14px;color:#999;text-align:center;">还没有玩家上榜，快去养哈基米吧！</div>';
     const me = rows.findIndex((r) => r.player_id === playerId);
     if (me >= 0) {
-      $('lb-mine').innerHTML = `🎯 你的排名：第 ${me + 1} 名（${fmt(rows[me].total_produced)}）<button id="btn-rename" style="margin-left:8px;padding:2px 8px;border:none;border-radius:6px;background:var(--accent-soft);color:var(--accent);font-size:12px;cursor:pointer;">✏️ 改名字</button>`;
+      $('lb-mine').innerHTML = `🎯 你的排名：第 ${me + 1} 名（${fmt(rows[me].total_produced)}）<span style="font-size:10px;color:#bbb;"> ID:#${shortPlayerId(playerId)}</span><button id="btn-rename" style="margin-left:8px;padding:2px 8px;border:none;border-radius:6px;background:var(--accent-soft);color:var(--accent);font-size:12px;cursor:pointer;">✏️ 改名字</button>`;
       $('btn-rename').addEventListener('click', () => { showNicknameModal(nickname); });
     } else if (playerId) {
       const { data: my } = await sb.from('leaderboard').select('total_produced').eq('player_id', playerId).maybeSingle();
       $('lb-mine').innerHTML = my && my.total_produced != null
-        ? `🎯 你的累计：${fmt(my.total_produced)}（暂在前 ${CONFIG.leaderboard.topN} 名外）<button id="btn-rename" style="margin-left:8px;padding:2px 8px;border:none;border-radius:6px;background:var(--accent-soft);color:var(--accent);font-size:12px;cursor:pointer;">✏️ 改名字</button>`
+        ? `🎯 你的累计：${fmt(my.total_produced)}（暂在前 ${CONFIG.leaderboard.topN} 名外）<span style="font-size:10px;color:#bbb;"> ID:#${shortPlayerId(playerId)}</span><button id="btn-rename" style="margin-left:8px;padding:2px 8px;border:none;border-radius:6px;background:var(--accent-soft);color:var(--accent);font-size:12px;cursor:pointer;">✏️ 改名字</button>`
         : '🎯 你还没上榜（先填昵称，挂机后自动上报）';
       const renameBtn = $('btn-rename');
       if (renameBtn) renameBtn.addEventListener('click', () => { showNicknameModal(nickname); });
