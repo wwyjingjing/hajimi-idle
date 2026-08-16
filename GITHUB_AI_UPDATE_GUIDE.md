@@ -7,7 +7,7 @@
 ## 0. 项目是什么
 
 「哈基杯-基狗对邦 · 挂机养成小游戏」：纯前端 H5 挂机游戏（类 Cookie Clicker），养哈基米/哈基汪两阵营对邦引流用。
-- 线上地址：`https://ea8df52043fd4121a761eed0a3e2c2c4.app.workbuddy.link/`（v0.6 系已上线）
+- 线上地址：`https://ea8df52043fd4121a761eed0a3e2c2c4.app.workbuddy.link/`（v0.7 已构建待部署；当前源码版本号见 index.html）
 - GitHub 仓库：`https://github.com/wwyjingjing/hajimi-idle`（唯一版本源）
 - 云端后端：Supabase 项目 `sboaeygtztyubizypvrc`（仅排行榜/账号用，anon key 在 `game/config.js`）
 
@@ -132,7 +132,8 @@ xcopy assets         deploy\assets /E /I /Y
 3. **客户端不可写/读的列**（`players.created_at`/`banned`、`scores.updated_at`/`form_level`）前端一律不碰。
 4. **昵称弹窗 `#overlay-nickname` 必须 z-index 35**（高于其他弹窗 30），否则会被排行榜遮挡。
 5. 玩家反馈「分数不上/不显示」：先让玩家**强制刷新**（旧缓存 bundle 的 upsert 被新授权拒绝是头号原因）；真有问题看浏览器 Console 的 `[排行榜]` 日志（rate implausible / player banned 等）。
-6. 防作弊完整机制见 `spec/issues/08-leaderboard-security-ops.md`（含监控 SQL、拉黑 SOP、排查手册），改动前必读。
+6. **人界/仙界双榜（v0.8）**：`leaderboard` 视图 = 人界榜（`total < 1e18`），`leaderboard_immortal` 视图 = 仙界榜（`total >= 1e18`，飞升玩家），前端「🐉 仙界」tab 查仙界视图。两个视图**必须同步维护**：改人界榜过滤条件时仙界榜也要对应改；绝对上限 1e24（通关目标），**不要再降回 1e18**（会重新封顶仙界玩家）。
+7. 防作弊完整机制见 `spec/issues/08-leaderboard-security-ops.md`（含监控 SQL、拉黑 SOP、排查手册、双榜设计日志），改动前必读。
 
 ---
 

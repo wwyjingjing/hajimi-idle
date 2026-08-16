@@ -346,3 +346,27 @@ rate_cap constant numeric := 1e14;
 - 速率核算的 rate_cap 必须覆盖「正常玩法的合法峰值」（含连点器×狂暴×三通道），否则重度玩家被误伤；
   防作弊真正靠 created_at 锚点（养号必须真等）+ 只增不减，rate_cap 是「宽松兜底」而非「严格闸门」。
 - `scores.updated_at` 原设计 `default now()` 只在 INSERT 生效，UPDATE 不刷新——用它判断活跃度会误导（cai 的 total 一直在涨但 updated_at 停在 15h 前）；已在触发器补 `new.updated_at = now()`。
+
+---
+
+### 2026-08-16（同日）人界/仙界双榜上线（破碎虚空飞升）
+
+**背景**：玩家反映「榜单到 100 亿亿（1e18）就封顶」——根因是触发器绝对上限 `>1e18 → score beyond ceiling`，cai（3.97e17）等头部玩家即将撞墙。运营决策：**双榜分界**，高分玩家飞升仙界，人界榜不再被封顶困扰。
+
+**设计**（已定稿）：
+- **飞升阈值**：`IMMORTAL_THRESHOLD = 1e18`（100 亿亿）。`total >= 1e18` 视为「破碎虚空」玩家。
+- **人界榜**：`leaderboard` 视图增加 `total_produced < 1e18` 过滤 → 仙界玩家自动从人界消失（满足「人界榜上看不到仙界榜单」）。
+- **仙界榜**：新增 `leaderboard_immortal` 视图（`total >= 1e18`，过滤拉黑，匿名可读），前端排行榜加「🐉 仙界」tab 进入。
+- **绝对上限**：1e18 → **1e24**（通关目标），仙界玩家可一路养到 1 亿亿亿不再封顶。
+- 速率核算（age×1e14）、拉黑过滤、只增不减、列级授权等防作弊机制**双榜通用**（视图只是展示层拆分，上报路径不变）。
+
+**云端 SQL**（已执行）：见 `docs/leaderboard-schema.sql` §6（leaderboard / leaderboard_immortal 两个视图）+ 触发器 absolute cap 改 1e24。
+
+**前端**：`game/ui.js` renderLeaderboard 支持 `lbFaction === 'immortal'` 分支查仙界视图；`index.html` 排行榜 tab 行加「🐉 仙界」；仙界空榜提示「养到 100 亿亿（1e18）即可破碎虚空飞升仙界」。
+
+**验证**：`select viewname from pg_views ... where viewname in ('leaderboard','leaderboard_immortal')` → 两个视图都在 ✅（2026-08-16 已确认）。
+
+**运营注意**：
+- 拉黑 SQL 不变（`update players set banned=true`），双榜视图都会过滤拉黑玩家。
+- 运营核算脚本（`docs/anti-cheat-audit.sql`）直查 scores/players 表不受双榜影响，仍能看全量。
+- 头部玩家飞升仙界后，人界榜首自动顺延；仙界榜是新的竞争舞台。
