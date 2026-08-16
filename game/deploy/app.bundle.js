@@ -1654,29 +1654,38 @@ async function submitScore(force = false) {
   if (!force && now - lastSubmitAt < CONFIG.leaderboard.submitIntervalMs) return;
   lastSubmitAt = now;
   try {
-    // 先 UPDATE、未命中再 INSERT（不用 upsert：upsert 要求整表 SELECT 权限，会泄露原始数据）
-    const payload = {
-      total_produced: Math.floor(state.totalProduced),
-      count: Math.floor(state.count),
-      play_seconds: Math.floor(state.stats.playSeconds || 0), // 游玩时长，云端按此核算分数合理性
-      // form_level/updated_at 由服务端计算与写入（客户端不可写，防伪造）
+    // 服务端权威重算（方案 A）：上报完整 state，云端用公式算权威 total 写库。
+    // 客户端 total 仅供参考；若 RPC 未部署/失败则静默降级（不影响游戏）。
+    const statePayload = {
+      count: state.count,
+      totalProduced: state.totalProduced,
+      pools: state.pools,
+      evolutionLevel: state.evolutionLevel,
+      boost: state.boost,
+      rapture: state.rapture,
+      shop: state.shop,
+      stats: { playSeconds: state.stats.playSeconds || 0 },
     };
-    console.log('[排行榜] 上报:', payload);
-    const u = await sb.from('scores').update(payload).eq('player_id', playerId);
-    if (u.error) {
-      console.warn('[排行榜] UPDATE 失败:', u.error);
-      // 上报失败：静默降级（网络/云端瞬时拒绝都不打断游戏；下个周期自动重试）
-      throw u.error;
-    }
-    if (!u.data || u.data.length === 0) {
-      console.log('[排行榜] UPDATE 未命中，执行 INSERT');
-      const i = await sb.from('scores').insert({ player_id: playerId, ...payload });
-      if (i.error) {
-        console.warn('[排行榜] INSERT 失败:', i.error);
-        throw i.error;
+    const { data: rpcData, error: rpcErr } = await sb.rpc('recalc_score', { p_state: statePayload });
+    if (rpcErr) {
+      // RPC 未部署或参数问题：静默降级（保持旧路径尝试写 scores，避免完全断联）
+      console.warn('[排行榜] recalc_score RPC 失败，降级旧路径:', rpcErr.message);
+      const payload = {
+        total_produced: Math.floor(state.totalProduced),
+        count: Math.floor(state.count),
+        play_seconds: Math.floor(state.stats.playSeconds || 0),
+      };
+      const u = await sb.from('scores').update(payload).eq('player_id', playerId);
+      if (u.error) throw u.error;
+      if (!u.data || u.data.length === 0) {
+        const i = await sb.from('scores').insert({ player_id: playerId, ...payload });
+        if (i.error) throw i.error;
       }
-    } else {
-      console.log('[排行榜] UPDATE 成功');
+    } else if (rpcData && rpcData.error) {
+      console.warn('[排行榜] recalc_score 云端拒绝:', rpcData.error, rpcData.context || '');
+    } else if (rpcData && rpcData.recalculated) {
+      // 用服务端权威值校准本地展示（榜单读数源已更新）
+      console.log('[排行榜] 服务端权威 total:', rpcData.total_server);
     }
     if (lastSubFaction !== state.faction) {
       lastSubFaction = state.faction;
