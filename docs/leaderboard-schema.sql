@@ -73,6 +73,8 @@ grant update (total_produced, count, play_seconds) on public.scores to anon, aut
 --    · 无增量锁（早期增量 ≤1e14 会锁住高产能玩家追涨，已移除；速率核算已覆盖其防作弊作用）
 --    · 只增不减；form_level 由服务端按 total 重算（与进化等级一致，客户端伪造无效）
 --    · updated_at 在 UPDATE 时刷新（new.updated_at = now()），便于运营判断活跃度
+--    · 绝对上限：1e18(100亿亿, 旧) → 1e24(1亿亿亿, 2026-08-16 随人界/仙界双榜改)，
+--      仙界榜玩家(total>=1e18)可继续上报到通关目标
 create or replace function public.keep_max_score()
 returns trigger language plpgsql security definer set search_path = public as $func$
 declare
@@ -82,7 +84,7 @@ begin
   if exists (select 1 from public.players where id = new.player_id and coalesce(banned, false)) then
     raise exception 'player banned';
   end if;
-  if new.total_produced > 1e18 then
+  if new.total_produced > 1e24 then
     raise exception 'score beyond ceiling';
   end if;
   -- 速率核算：total ≤ 账号年龄 × 1e14（正常玩家产能观察值 ~1e10~1e11/s，
@@ -105,14 +107,29 @@ create trigger scores_keep_max
   before insert or update on public.scores
   for each row execute function public.keep_max_score();
 
--- 6) 排行榜展示视图：仅 4 列脱敏 + 过滤拉黑（前端唯一读路径；非 security_invoker，属主执行）
+-- 6) 排行榜展示视图（人界/仙界双榜，前端唯一读路径；非 security_invoker，属主执行）
+--    · 飞升阈值 IMMORTAL_THRESHOLD = 1e18（100 亿亿）：total >= 阈值为「仙界」玩家
+--    · 人界榜：total < 1e18（看不到仙界玩家）；仙界榜：total >= 1e18
+--    · 两者都过滤拉黑；仙界榜玩家仍在 scores 表上报，只是从人界榜消失
+-- 人界榜（原 leaderboard 语义，现增加 total < 1e18 过滤）
 create or replace view public.leaderboard as
 select s.player_id, p.nickname, p.faction, s.total_produced
 from public.scores s
 join public.players p on p.id = s.player_id
-where coalesce(p.banned, false) = false;
+where coalesce(p.banned, false) = false
+  and s.total_produced < 1e18;
 
 grant select on public.leaderboard to anon, authenticated;
+
+-- 仙界榜（飞升玩家专属：total >= 1e18，按分数降序）
+create or replace view public.leaderboard_immortal as
+select s.player_id, p.nickname, p.faction, s.total_produced
+from public.scores s
+join public.players p on p.id = s.player_id
+where coalesce(p.banned, false) = false
+  and s.total_produced >= 1e18;
+
+grant select on public.leaderboard_immortal to anon, authenticated;
 
 -- 7) 前端读写约定
 --    上报（两步走，不用 upsert——upsert 要求整表 SELECT 权限会泄露原始数据）：
