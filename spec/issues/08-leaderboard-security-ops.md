@@ -271,6 +271,38 @@ update public.players set created_at = now() - interval '3 days' where id = 'uui
 
 - `docs/adr/0002-leaderboard-account-supabase.md` — 决策背景（含渗透复盘）
 - `docs/leaderboard-schema.sql` — 建表/授权/触发器/视图唯一事实源（**以它为准**）
+- `docs/anti-cheat-audit.sql` — 全榜速率核算 + 异常扫描（运营只读脚本）
 - `spec/issues/07-current-state-handover.md` — 交接 PRD（含已知问题）
 - `game/ui.js`（initSupabase / submitScore / renderLeaderboard）— 前端读写实现
 - `game/config.js`（supabase / leaderboard 段）— 连接配置
+
+---
+
+## 附录：运营操作日志（每次核查/拉黑记一笔）
+
+### 2026-08-16 首次全榜核查与拉黑
+
+**背景**：对邦期间首次系统性反作弊核查。用 `docs/anti-cheat-audit.sql` ① 全榜速率核算 Top 60。
+
+**判定口径**：
+- 正常玩家速率观察值 ~1e10~1e11/s（裕量 10~100 倍）。
+- 🚨 昵称自曝（代肝广告/作弊标记）→ 直接拉黑。
+- ⚠️ 速率逼近上限（>5e11/s）但未超标 → 保留观察，不拉黑（运营判断，防误伤）。
+
+**已拉黑（3 个，昵称自曝）**：
+1. `曼波波波养猫代肝加vx`（dog）— 代肝广告，速率 3.3e11/s 超观察值 3 倍
+2. `养猫科技.一键登顶.稳定不封.代`（kimi）— 代肝广告
+3. `回归审计勿删`（kimi）— 昵称=作弊标记，42 分钟建号冲 5e14，数值恰好凑整 500000000000000
+
+**拉黑 SQL**：`update public.players set banned = true where nickname in (...)` → 验证 `leaderboard` 视图 leaked=0 ✅
+
+**保留观察（3 个，速率异常但未超标）**：
+- `Cirno`（kimi）9.6e11/s 逼近硬上限 1e12，16.9h 满速
+- `我是谁压实度`（dog）6.4e11/s，1.8h 建号冲到 4.12e15
+- `Ab_Wesker`（dog）3.7e11/s，26 分钟建号 5.76e14
+
+**观察要点**：若上述 3 个后续速率持续异常（不降速 / 短期冲 e17+），或触发 `rate implausible` 被拒，再评估拉黑。
+
+**既有拉黑（本次核查发现的历史状态）**：`SilverWolfLv.999`（5e14）、`"素裳"`（9e14，created_at 显示 6.6 年前异常）。
+
+**正常确认**：`胖宝宝`（2.3e10/s，PRD 认证真实头部玩家）、`caicai`、`Miko`、`狗叫曼波`、`0` 等速率均在正常区间。
