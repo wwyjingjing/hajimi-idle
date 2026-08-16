@@ -1713,7 +1713,7 @@ async function renderLeaderboard() {
   $('lb-mine').textContent = '';
   try {
     if (!sb) throw new Error('supabase 未就绪');
-    // 仙界 tab 查 leaderboard_immortal 视图（total >= 1e18，云端正交于人界榜）
+    // 封神榜 tab 查 leaderboard_immortal 视图（total >= 1e18，云端正交于人界榜）
     // 人界 tab 查 leaderboard 视图（total < 1e18）
     const isImmortal = lbFaction === 'immortal';
     let q = sb.from(isImmortal ? 'leaderboard_immortal' : 'leaderboard')
@@ -1725,7 +1725,7 @@ async function renderLeaderboard() {
     if (error) throw error;
     const rows = data || [];
     const emptyHtml = isImmortal
-      ? '<div style="padding:14px;color:#999;text-align:center;">🐉 仙界空无一人<br><span style="font-size:12px;">养到 100 亿亿（1e18）即可破碎虚空飞升仙界！</span></div>'
+      ? '<div style="padding:14px;color:#999;text-align:center;">🐉 封神榜空无一人<br><span style="font-size:12px;">养到 100 亿亿（1e18）即可破碎虚空登封神榜！</span></div>'
       : '<div style="padding:14px;color:#999;text-align:center;">还没有玩家上榜，快去养哈基米吧！</div>';
     listEl.innerHTML = rows.length
       ? rows.map((r, i) => `<div style="display:flex;align-items:center;gap:8px;padding:9px 6px;border-bottom:1px dashed #eee;${r.player_id === playerId ? 'background:var(--accent-soft);border-radius:10px;' : ''}">
@@ -1738,15 +1738,16 @@ async function renderLeaderboard() {
         </div>`).join('')
       : emptyHtml;
     const me = rows.findIndex((r) => r.player_id === playerId);
+    const realmLabel = isImmortal ? '封神榜' : '人界';
     if (me >= 0) {
-      $('lb-mine').innerHTML = `🎯 ${isImmortal ? '仙' : '人'}界你的排名：第 ${me + 1} 名（${fmt(rows[me].total_produced)}）<span style="font-size:10px;color:#bbb;"> ID:#${shortPlayerId(playerId)}</span><button id="btn-rename" style="margin-left:8px;padding:2px 8px;border:none;border-radius:6px;background:var(--accent-soft);color:var(--accent);font-size:12px;cursor:pointer;">✏️ 改名字</button>`;
+      $('lb-mine').innerHTML = `🎯 ${realmLabel}你的排名：第 ${me + 1} 名（${fmt(rows[me].total_produced)}）<span style="font-size:10px;color:#bbb;"> ID:#${shortPlayerId(playerId)}</span><button id="btn-rename" style="margin-left:8px;padding:2px 8px;border:none;border-radius:6px;background:var(--accent-soft);color:var(--accent);font-size:12px;cursor:pointer;">✏️ 改名字</button>`;
       $('btn-rename').addEventListener('click', () => { showNicknameModal(nickname); });
     } else if (playerId) {
       const { data: my } = await sb.from(isImmortal ? 'leaderboard_immortal' : 'leaderboard').select('total_produced').eq('player_id', playerId).maybeSingle();
       $('lb-mine').innerHTML = my && my.total_produced != null
-        ? `🎯 ${isImmortal ? '仙' : '人'}界你的累计：${fmt(my.total_produced)}（暂在前 ${CONFIG.leaderboard.topN} 名外）<span style="font-size:10px;color:#bbb;"> ID:#${shortPlayerId(playerId)}</span><button id="btn-rename" style="margin-left:8px;padding:2px 8px;border:none;border-radius:6px;background:var(--accent-soft);color:var(--accent);font-size:12px;cursor:pointer;">✏️ 改名字</button>`
+        ? `🎯 ${realmLabel}你的累计：${fmt(my.total_produced)}（暂在前 ${CONFIG.leaderboard.topN} 名外）<span style="font-size:10px;color:#bbb;"> ID:#${shortPlayerId(playerId)}</span><button id="btn-rename" style="margin-left:8px;padding:2px 8px;border:none;border-radius:6px;background:var(--accent-soft);color:var(--accent);font-size:12px;cursor:pointer;">✏️ 改名字</button>`
         : isImmortal
-          ? '🎯 你尚未飞升仙界（养到 100 亿亿 1e18 即可）'
+          ? '🎯 你尚未登封神榜（养到 100 亿亿 1e18 即可）'
           : '🎯 你还没上榜（先填昵称，挂机后自动上报）';
       const renameBtn = $('btn-rename');
       if (renameBtn) renameBtn.addEventListener('click', () => { showNicknameModal(nickname); });
