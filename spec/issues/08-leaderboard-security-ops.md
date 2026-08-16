@@ -370,3 +370,17 @@ rate_cap constant numeric := 1e14;
 - 拉黑 SQL 不变（`update players set banned=true`），双榜视图都会过滤拉黑玩家。
 - 运营核算脚本（`docs/anti-cheat-audit.sql`）直查 scores/players 表不受双榜影响，仍能看全量。
 - 头部玩家飞升仙界后，人界榜首自动顺延；仙界榜是新的竞争舞台。
+
+---
+
+### 2026-08-16（同日）双榜上线首日核查：Silver 脚本养号群拉黑 + 仙界榜空确认
+
+**背景**：双榜上线后运营反馈「超过 1e18 的人没显示在仙界榜」。核查发现：
+1. **仙界榜为空是正常的**：当时无人真正达到 1e18（榜首 Prod.Eblana.dayo 9.96e17，差 0.4%）。100 亿亿 = 1e18，人界榜榜首仍低于阈值，仙界榜空 = 视图正确工作。
+2. **顺带发现 Silver 脚本养号群**：5 个同源变体账号（`SIiverWolfLv.999` / `SilverWlfHacked`×3 / `SillverWlfHacked`），分数全部人为凑整（4e17 / 2.5e17 / 4e16 / 1.11e16），为养号/脚本刷分特征。
+
+**处置**：`update players set banned = true where nickname in (5 个 Silver 变体)` → 全部拉黑 ✅，人界榜 top10 恢复干净。
+
+**结论**：
+- 双榜机制正常：`total >= 1e18` 才进仙界榜，此前仙界榜空属预期。
+- 脚本养号群特征（同源昵称变体 + 凑整分数）是拉黑高置信信号；按「先核算+确认再拉黑」口径，本次 5 个已与运营确认后拉黑。
