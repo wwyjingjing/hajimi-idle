@@ -10,6 +10,7 @@ import {
   collectGenes, collectionProgress, shareText,
   globalShopMultiplier, shopMultiplierCost, buyMultiplier, raptureMultiplier, raptureRate, raptureUpgradeCost, buyRaptureUpgrade, useClicker, shopPoolUpgradeCost, buyPoolUpgrade, buyBuff, setTheme,
   bonusMultiplier, buyThemeItem,
+  applySiteConfig,
 } from './core.js';
 
 function getStorage() {
@@ -459,7 +460,7 @@ function onTick() {
   render();
   maybeClear();
   persist();
-  submitScore(); // 排行榜上报（内部 10s 节流，失败静默）
+  if (CONFIG.leaderboard.enabled) submitScore(); // 排行榜上报（内部 10s 节流，失败静默；关闭时不上报）
 }
 
 function taskRowHtml(t, done, ok) {
@@ -728,6 +729,9 @@ async function initSupabase() {
     sb = window.supabase.createClient(CONFIG.supabase.url, CONFIG.supabase.anonKey, {
       auth: { persistSession: true, autoRefreshToken: true },
     });
+    // 远端运营配置（推广位/看板/分享/新闻）：anon 只读即可，不依赖匿名登录；
+    // 失败静默回退本地 config.js（游戏必须离线可玩）。
+    await loadSiteConfig();
     let session = (await sb.auth.getSession()).data.session;
     if (!session) session = (await sb.auth.signInAnonymously()).data.session;
     if (!session) {
@@ -745,6 +749,23 @@ async function initSupabase() {
       console.log('[排行榜] 从云端恢复昵称:', nickname);
     }
   } catch (e) { console.warn('排行榜初始化失败（可能未建表/匿名登录未开启）', e); }
+}
+
+// 拉取远端运营配置（docs/site-config-schema.sql 建的 site_config 表）并覆盖 CONFIG。
+// 覆盖规则在 core.applySiteConfig（白名单 key + 值合法性校验）；失败/缺 key 静默保留本地默认。
+async function loadSiteConfig() {
+  if (!sb) return;
+  try {
+    const { data, error } = await sb.from('site_config').select('key, value');
+    if (error) throw error;
+    applySiteConfig(CONFIG, data || []);
+    console.log('[远端配置] 已加载 site_config:', (data || []).map((r) => r.key).join(', ') || '空');
+    // 刷新受远端配置影响的 UI：群号、新闻栏
+    $('btn-group').textContent = CONFIG.board.group;
+    renderNews();
+  } catch (e) {
+    console.warn('[远端配置] 拉取失败，使用本地配置', e);
+  }
 }
 
 async function ensurePlayerRow() {
@@ -1095,8 +1116,14 @@ function init() {
   setInterval(onTick, 1000);
   renderNews();
   setInterval(renderNews, 4000);
-  initSupabase(); // 匿名登录 + 玩家档案（失败静默，不影响游戏）
-  window.addEventListener('pagehide', () => submitScore(true));
+  if (CONFIG.leaderboard.enabled) {
+    initSupabase(); // 匿名登录 + 玩家档案（失败静默，不影响游戏）
+    window.addEventListener('pagehide', () => submitScore(true));
+  } else {
+    // 排行榜关闭：隐藏入口按钮，不上报（B站版本隐藏排行榜）
+    const lbBtn = $('btn-leaderboard');
+    if (lbBtn) lbBtn.style.display = 'none';
+  }
 }
 
 init();

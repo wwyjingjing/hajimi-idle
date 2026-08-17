@@ -11,9 +11,9 @@ const CONFIG = {
   // localStorage 单 key 存档
   storageKey: 'hajimi-idle.save.v1',
 
-  // 分享文案与晒图里的游戏入口链接（对外域名）
+  // 分享文案与晒图里的游戏入口链接（对外域名；线上以 site_config 表 share key 为准，此处为本地兜底）
   share: {
-    link: 'https://ea8df52043fd4121a761eed0a3e2c2c4.app.workbuddy.link/',
+    link: 'https://www.bilibili.com/toy/hajimi-idle-public/index.html',
   },
 
   // 对邦看板入口 + 官方群
@@ -28,8 +28,9 @@ const CONFIG = {
     anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNib2FleWd0enR5dWJpenlwdnJjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY3ODgxNzYsImV4cCI6MjEwMjM2NDE3Nn0.RXOOx7G34D32TK40UGNuE4bngdfdsZRSYJ8Fx0JaMoU',
   },
   leaderboard: {
-    submitIntervalMs: 10 * 1000, // 每 10 秒上报一次（关页/切后台另即时上报）
-    topN: 100,                   // 榜单前 100 名
+    enabled: false,               // ★ 总开关：false=隐藏排行榜入口+停止上报（B站版本用）；true=显示（需重新部署）
+    submitIntervalMs: 10 * 1000,  // 每 10 秒上报一次（关页/切后台另即时上报）
+    topN: 100,                    // 榜单前 100 名
   },
 
   // 通关目标：累计产仔达 10²⁴（1 亿亿亿）
@@ -156,6 +157,9 @@ const CONFIG = {
       { title: '大狗叫：嚼叫', bvid: 'BV1MSuC6wEU6', author: 'SalvatoreSolace', ready: true },
       { title: '电棍，哈基米：直到大地颗变成一酸橙', bvid: 'BV1m7gH6iEzV', author: '爱布拉娜p', ready: true },
       { title: '叮咚鸡怀旧小卖部【哈基杯应援】', bvid: 'BV1EkgA6qEvo', author: '南华真人666', ready: true },
+      { title: '走近哈基屋', bvid: 'BV1cfb96eEfG', author: '永雏塔顺费', ready: true },
+      { title: '【哈基杯应援】除草机音乐', bvid: 'BV1m3bv6XEdd', author: '海绵宝宝非谦儿', ready: true },
+      { title: '【基狗对邦应援】😺聪明的基米😺', bvid: 'BV1Vnbe6ZEXV', author: '勇者アリス', ready: true },
     ],
     // 短链前缀：留空或构造失败时回退原始 B 站链接
     shortLinkPrefix: '',
@@ -859,6 +863,45 @@ function buyThemeItem(state, themeId) {
   };
 }
 
+// ============================================================
+// 远端运营配置（site_config 表 → CONFIG 覆盖，见 docs/site-config-schema.sql）
+// ============================================================
+
+/**
+ * 把远端 site_config 行（[{key, value}]）覆盖到本地 CONFIG 对象。
+ * 纯函数：只覆盖白名单 key 且值合法（featured/news 为数组、board/share 为对象、
+ * collection_url 为非空字符串）；缺 key / 非法值一律保留本地默认。
+ * @param {object} cfg 本地 CONFIG（会被就地修改，引用可变对象）
+ * @param {Array<{key:string, value:any}>} rows 远端配置行
+ * @returns {object} 返回同一 cfg（便于链式/断言）
+ */
+function applySiteConfig(cfg, rows) {
+  if (!cfg || !Array.isArray(rows)) return cfg;
+  for (const row of rows) {
+    if (!row || typeof row.key !== 'string') continue;
+    const v = row.value;
+    switch (row.key) {
+      case 'featured':
+        if (Array.isArray(v) && v.length) cfg.supply.featured = v;
+        break;
+      case 'board':
+        if (v && typeof v === 'object' && !Array.isArray(v)) cfg.board = { ...cfg.board, ...v };
+        break;
+      case 'share':
+        if (v && typeof v === 'object' && !Array.isArray(v)) cfg.share = { ...cfg.share, ...v };
+        break;
+      case 'collection_url':
+        if (typeof v === 'string' && v) cfg.supply.collectionUrl = v;
+        break;
+      case 'news':
+        if (Array.isArray(v) && v.length) cfg.news = v;
+        break;
+      default: break;
+    }
+  }
+  return cfg;
+}
+
 
 // ============ ui.js ============
 // 渲染层：喂食点击 + 池子购买 + 挂机秒产 + 进化形态 + 基因池展示 + 选边换边 + 离线收益 + 通关。
@@ -1312,7 +1355,7 @@ function onTick() {
   render();
   maybeClear();
   persist();
-  submitScore(); // 排行榜上报（内部 10s 节流，失败静默）
+  if (CONFIG.leaderboard.enabled) submitScore(); // 排行榜上报（内部 10s 节流，失败静默；关闭时不上报）
 }
 
 function taskRowHtml(t, done, ok) {
@@ -1581,6 +1624,9 @@ async function initSupabase() {
     sb = window.supabase.createClient(CONFIG.supabase.url, CONFIG.supabase.anonKey, {
       auth: { persistSession: true, autoRefreshToken: true },
     });
+    // 远端运营配置（推广位/看板/分享/新闻）：anon 只读即可，不依赖匿名登录；
+    // 失败静默回退本地 config.js（游戏必须离线可玩）。
+    await loadSiteConfig();
     let session = (await sb.auth.getSession()).data.session;
     if (!session) session = (await sb.auth.signInAnonymously()).data.session;
     if (!session) {
@@ -1598,6 +1644,23 @@ async function initSupabase() {
       console.log('[排行榜] 从云端恢复昵称:', nickname);
     }
   } catch (e) { console.warn('排行榜初始化失败（可能未建表/匿名登录未开启）', e); }
+}
+
+// 拉取远端运营配置（docs/site-config-schema.sql 建的 site_config 表）并覆盖 CONFIG。
+// 覆盖规则在 core.applySiteConfig（白名单 key + 值合法性校验）；失败/缺 key 静默保留本地默认。
+async function loadSiteConfig() {
+  if (!sb) return;
+  try {
+    const { data, error } = await sb.from('site_config').select('key, value');
+    if (error) throw error;
+    applySiteConfig(CONFIG, data || []);
+    console.log('[远端配置] 已加载 site_config:', (data || []).map((r) => r.key).join(', ') || '空');
+    // 刷新受远端配置影响的 UI：群号、新闻栏
+    $('btn-group').textContent = CONFIG.board.group;
+    renderNews();
+  } catch (e) {
+    console.warn('[远端配置] 拉取失败，使用本地配置', e);
+  }
 }
 
 async function ensurePlayerRow() {
@@ -1948,8 +2011,14 @@ function init() {
   setInterval(onTick, 1000);
   renderNews();
   setInterval(renderNews, 4000);
-  initSupabase(); // 匿名登录 + 玩家档案（失败静默，不影响游戏）
-  window.addEventListener('pagehide', () => submitScore(true));
+  if (CONFIG.leaderboard.enabled) {
+    initSupabase(); // 匿名登录 + 玩家档案（失败静默，不影响游戏）
+    window.addEventListener('pagehide', () => submitScore(true));
+  } else {
+    // 排行榜关闭：隐藏入口按钮，不上报（B站版本隐藏排行榜）
+    const lbBtn = $('btn-leaderboard');
+    if (lbBtn) lbBtn.style.display = 'none';
+  }
 }
 
 init();

@@ -15,7 +15,7 @@
 > 哈基米/哈基汪双阵营挂机养成网页小游戏，B 站打开即玩、零安装。
 > 点一下喂食就繁殖一窝，买池子挂机自动生，从下水道一路养到「1 亿亿亿」只通关；25 级进化形态、毛色×体型×变异基因彩票、任务成就图鉴背包一应俱全。
 > 看应援视频还能领加速卡（君子协定，点击即结算）；基米队 vs 大狗队，排行榜分榜对决——你的阵营需要你！
-> 🎮 点这里开玩：https://ea8df52043fd4121a761eed0a3e2c2c4.app.workbuddy.link/
+> 🎮 点这里开玩：https://www.bilibili.com/toy/hajimi-idle-public/index.html
 
 ## 三、玩法亮点（发帖配图用，每条一行）
 
@@ -32,8 +32,8 @@
 
 | 用途 | 地址 |
 |---|---|
-| 对外公开（发帖用） | https://ea8df52043fd4121a761eed0a3e2c2c4.app.workbuddy.link/ |
-| 本地预览（截图/自测用，已是最新 v0.4） | http://127.0.0.1:8322 |
+| 对外公开（发帖用） | https://www.bilibili.com/toy/hajimi-idle-public/index.html |
+| 本地预览（截图/自测用） | http://127.0.0.1:8322 |
 
 > ⚠️ 重要：线上地址目前还是旧版 v0.3（没有排行榜按钮）。**发帖前请先用 WorkBuddy 的 `workbuddy_cloudstudio_deploy` 重新部署 `game/deploy/`**，线上变 v0.4（选边页右下角显示版本号）后再放链接，避免观众点进去没有排行榜。
 

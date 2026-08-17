@@ -604,3 +604,42 @@ export function buyThemeItem(state, themeId) {
     shop: { ...state.shop, themeItems: { ...state.shop.themeItems, [themeId]: true } },
   };
 }
+
+// ============================================================
+// 远端运营配置（site_config 表 → CONFIG 覆盖，见 docs/site-config-schema.sql）
+// ============================================================
+
+/**
+ * 把远端 site_config 行（[{key, value}]）覆盖到本地 CONFIG 对象。
+ * 纯函数：只覆盖白名单 key 且值合法（featured/news 为数组、board/share 为对象、
+ * collection_url 为非空字符串）；缺 key / 非法值一律保留本地默认。
+ * @param {object} cfg 本地 CONFIG（会被就地修改，引用可变对象）
+ * @param {Array<{key:string, value:any}>} rows 远端配置行
+ * @returns {object} 返回同一 cfg（便于链式/断言）
+ */
+export function applySiteConfig(cfg, rows) {
+  if (!cfg || !Array.isArray(rows)) return cfg;
+  for (const row of rows) {
+    if (!row || typeof row.key !== 'string') continue;
+    const v = row.value;
+    switch (row.key) {
+      case 'featured':
+        if (Array.isArray(v) && v.length) cfg.supply.featured = v;
+        break;
+      case 'board':
+        if (v && typeof v === 'object' && !Array.isArray(v)) cfg.board = { ...cfg.board, ...v };
+        break;
+      case 'share':
+        if (v && typeof v === 'object' && !Array.isArray(v)) cfg.share = { ...cfg.share, ...v };
+        break;
+      case 'collection_url':
+        if (typeof v === 'string' && v) cfg.supply.collectionUrl = v;
+        break;
+      case 'news':
+        if (Array.isArray(v) && v.length) cfg.news = v;
+        break;
+      default: break;
+    }
+  }
+  return cfg;
+}

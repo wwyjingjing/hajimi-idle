@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import { CONFIG } from './config.js';
 import {
   createGame, evolutionMultiplier, evolutionLevelFor, formName,
@@ -9,7 +9,16 @@ import {
   collectGenes, collectionProgress, formatCount, shareText,
   globalShopMultiplier, shopMultiplierCost, buyMultiplier, raptureMultiplier, raptureRate, raptureUpgradeCost, buyRaptureUpgrade, useClicker, shopPoolUpgradeCost, buyPoolUpgrade, buyBuff, setTheme,
   bonusMultiplier, buyThemeItem,
+  applySiteConfig,
 } from './core.js';
+
+// 远端配置测试会就地修改共享 CONFIG，用快照在用例间恢复
+const CONFIG_SNAPSHOT = JSON.parse(JSON.stringify(CONFIG));
+afterEach(() => {
+  for (const k of Object.keys(CONFIG_SNAPSHOT)) {
+    CONFIG[k] = CONFIG_SNAPSHOT[k];
+  }
+});
 
 describe('createGame', () => {
   it('初始状态：数量 0、累计 0、池子全 0、进化 0', () => {
@@ -562,5 +571,69 @@ describe('商店（票 06 前扩展）', () => {
     expect(bought.shop.themeItems['qixi']).toBe(true);
     expect(bought.count).toBe(1e9 - CONFIG.shop.themes.find((t) => t.id === 'qixi').item.cost);
     expect(buyThemeItem(bought, 'qixi')).toBe(bought); // 已购买不再扣
+  });
+});
+
+describe('远端运营配置（applySiteConfig）', () => {
+  it('合法行覆盖对应 CONFIG 字段（featured/board/share/collection_url/news）', () => {
+    const cfg = {
+      supply: { featured: [], collectionUrl: 'https://local.example' },
+      board: { url: 'https://local-board.example', group: '111' },
+      share: { link: 'https://local-share.example' },
+      news: [],
+    };
+    applySiteConfig(cfg, [
+      { key: 'featured', value: [{ title: '新视频', bvid: 'BV1xxxxx', author: '甲', ready: true }] },
+      { key: 'board', value: { url: 'https://new-board.example', group: '999' } },
+      { key: 'share', value: { link: 'https://new-share.example' } },
+      { key: 'collection_url', value: 'https://new-collection.example' },
+      { key: 'news', value: ['📢 新公告'] },
+    ]);
+    expect(cfg.supply.featured).toHaveLength(1);
+    expect(cfg.supply.featured[0].bvid).toBe('BV1xxxxx');
+    expect(cfg.board.url).toBe('https://new-board.example');
+    expect(cfg.board.group).toBe('999');
+    expect(cfg.share.link).toBe('https://new-share.example');
+    expect(cfg.supply.collectionUrl).toBe('https://new-collection.example');
+    expect(cfg.news).toEqual(['📢 新公告']);
+  });
+
+  it('非法值（空数组/非对象/空串/未知 key）一律忽略，保留本地默认', () => {
+    const cfg = {
+      supply: { featured: [{ title: '本地' }], collectionUrl: 'https://local.example' },
+      board: { url: 'https://local-board.example', group: '111' },
+      share: { link: 'https://local-share.example' },
+      news: ['本地新闻'],
+    };
+    applySiteConfig(cfg, [
+      { key: 'featured', value: [] },                        // 空数组忽略
+      { key: 'board', value: 'not-an-object' },              // 非对象忽略
+      { key: 'share', value: null },                         // null 忽略
+      { key: 'collection_url', value: '' },                  // 空串忽略
+      { key: 'news', value: [] },                            // 空数组忽略
+      { key: 'unknown_key', value: { hack: true } },         // 未知 key 忽略
+      { key: 42, value: 'no-key-string' },                   // key 非字符串忽略
+    ]);
+    expect(cfg.supply.featured[0].title).toBe('本地');
+    expect(cfg.board.url).toBe('https://local-board.example');
+    expect(cfg.share.link).toBe('https://local-share.example');
+    expect(cfg.supply.collectionUrl).toBe('https://local.example');
+    expect(cfg.news).toEqual(['本地新闻']);
+  });
+
+  it('rows 非数组 / cfg 为空时原样返回，不抛错', () => {
+    const cfg = { supply: {}, board: {}, share: {}, news: [] };
+    expect(applySiteConfig(cfg, null)).toBe(cfg);
+    expect(applySiteConfig(null, [])).toBe(null);
+  });
+
+  it('覆盖共享 CONFIG 后 pickSupplyTarget 使用新 featured（运营改库即生效）', () => {
+    const remote = [{ title: '远端新视频', bvid: 'BV1NewRemote', author: '运营', ready: true }];
+    applySiteConfig(CONFIG, [{ key: 'featured', value: remote }]);
+    expect(CONFIG.supply.featured).toHaveLength(1);
+    expect(CONFIG.supply.featured[0].bvid).toBe('BV1NewRemote');
+    const work = pickSupplyTarget(() => 0); // rng=0 命中第一条 work
+    expect(work.kind).toBe('work');
+    expect(work.url).toBe('https://www.bilibili.com/video/BV1NewRemote');
   });
 });

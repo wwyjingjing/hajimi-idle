@@ -29,6 +29,7 @@
 - **商店**：全局倍率(1.1^n)、池子升级(×2^n)、商店加速卡、节日主题+道具、狂暴升级(5000万×10ⁿ)。
 - **任务/成就/图鉴/背包/新闻/分享**：每日任务 8 条、主线 14 条；成就 22 条；图鉴=25 形态+32 基因组合+6 变异+种群统计；分享含对外域名链接与 Canvas 晒图。
 - **排行榜+轻量账号（Supabase）**：匿名登录自动玩家 ID + 自填昵称；按 total_produced 排名，阵营分榜；云端防作弊（见实现决策）。
+- **远端运营配置（site_config）**：推广位 featured / 看板 board / 分享 share / 应援默认地址 collection_url / 新闻 news 全部由 Supabase `site_config` 表托管；前端启动时拉取并覆盖 CONFIG（白名单 key + 值合法性校验），失败静默回退本地 config.js（离线可玩）。运营改数据库即可更新弹窗/推广内容，无需重新构建部署（见 docs/site-config-schema.sql 与 core.applySiteConfig）。
 
 ## User Stories
 
@@ -75,9 +76,14 @@
   - **弃用**：客户端 play_seconds 核算（旧客户端不传导致全误锁）、增量锁 ≤1e14（误伤追涨）、旧天花板 1e15（逼近头部玩家）、upsert 上报（需整表 SELECT 会泄露）；现用**两步走**上报（先 UPDATE 未命中再 INSERT）。
   - **leaderboard 视图**：仅 4 列（player_id/nickname/faction/total_produced），过滤拉黑，匿名可读；前端唯一读路径。
   - **拉黑**：`players.banned=true` 运营一条命令；拉黑后视图不展示 + 触发器拒绝其上报。
+- **远端运营配置（site_config，详见 docs/site-config-schema.sql）**：
+  - 表 `site_config(key text PK, value jsonb, updated_at, enabled)`，匿名只读（RLS），客户端禁写；种子数据与 config.js 对齐。
+  - key：`featured`（推广位数组）、`board`（{url,group}）、`share`（{link}）、`collection_url`（字符串）、`news`（字符串数组）。
+  - 前端 `loadSiteConfig()` 在 initSupabase 内启动时拉取（不依赖匿名登录成功），经 core `applySiteConfig` 白名单覆盖 CONFIG；失败/缺 key 静默回退本地（离线可玩）。
+  - 运营更新：`update public.site_config set value = '...'::jsonb where key = '...';` → 玩家下次启动/刷新即生效，无需重新构建部署。
 - **前端**：排行榜入口「🏅 排行」、昵称弹窗、总榜/分榜 tab、我的排名；上报每 10s + pagehide；游玩时长随存档。
 - **营销**：`docs/宣传视频脚本.md`（45s 主版+15s 极速版+标题/封面/旁白/简介/TAG）、`docs/15秒广告视频提示词.md`（AI 文生视频提示词）、`docs/B站Toy宣传帖与测试申请.md`（发帖+测试资格申请+8 张截图清单）。
-- **部署**：改代码 → `node game/build.mjs` → 同步 `game/deploy/`（index.html+app.bundle.js+assets）→ WorkBuddy 执行 `workbuddy_cloudstudio_deploy --directory ...\game\deploy`。线上：https://ea8df52043fd4121a761eed0a3e2c2c4.app.workbuddy.link/（v0.6 已部署）；本地预览 http://127.0.0.1:8322。
+- **部署**：改代码 → `node game/build.mjs` → 同步 `game/deploy/`（index.html+app.bundle.js+assets）→ WorkBuddy 执行 `workbuddy_cloudstudio_deploy --directory ...\game\deploy`。CloudStudio 线上（内部部署用）：https://ea8df52043fd4121a761eed0a3e2c2c4.app.workbuddy.link/；**对外主入口（2026-08-15 起）**：https://www.bilibili.com/toy/hajimi-idle-public/index.html（B 站 Toy 公开版，分享链接 site_config.share.link 已指向它）；本地预览 http://127.0.0.1:8322。**B 站 Toy 部署**：toy CLI（`C:\Users\Administrator\AppData\Local\Programs\toy\toy.exe`，已登录「吴吴的京」）→ 同步最新 `app.bundle.js`+`index.html`+`assets/` 到 `F:\workbuddy\_toy-publish` → `toy update 22870361262080 <path> --yes`（公开版 hajimi-idle-public）+ `toy update 22866645109760 <path> --yes`（链接版 hajimi-idle）→ 提交审核。Toy 链接：https://www.bilibili.com/toy/hajimi-idle/index.html（LINK_ONLY）与 https://www.bilibili.com/toy/hajimi-idle-public/index.html（PUBLIC）。
 
 ## Testing Decisions
 
@@ -103,4 +109,4 @@
   - 拉黑名单运营（把新发现的作弊昵称发我即可执行）。
   - 短链计数服务开通（原 06 遗留）。
   - 若要对邦结算/复盘，汇总榜单快照。
-- **环境**：Supabase 项目 `sboaeygtztyubizypvrc`（anon key 在 `config.js`；数据库密码由用户持有，`game/apply_schema.mjs` 走 `SUPABASE_DB_PASSWORD` 环境变量）；本地 node 全路径 `C:\Users\Administrator\.workbuddy\binaries\node\versions\22.22.2\node.exe`（PATH 未配置）；游戏文档 `docs/`（ADR 0001/0002、leaderboard-schema.sql、营销三件套）。
+- **环境**：Supabase 项目 `sboaeygtztyubizypvrc`（anon key 在 `config.js`；数据库密码由用户持有，`game/apply_schema.mjs` 走 `SUPABASE_DB_PASSWORD` 环境变量；**本机直连数据库受限：DNS 仅解析出 IPv6 且本机无 IPv6，需在 Supabase 控制台 SQL Editor 手动执行建表 SQL**）；本地 node 全路径 `C:\Users\Administrator\.workbuddy\binaries\node\versions\22.22.2\node.exe`（PATH 未配置）；游戏文档 `docs/`（ADR 0001/0002、leaderboard-schema.sql、site-config-schema.sql、营销三件套）。**B 站 Toy 部署**：toy CLI 位于 `C:\Users\Administrator\AppData\Local\Programs\toy\toy.exe`，已登录「吴吴的京」；部署目录 `F:\workbuddy\_toy-publish`（同步 deploy 三件套后 `toy update 22870361262080 <path> --yes` + `toy update 22866645109760 <path> --yes`）。**site_config 动态配置已上线**（2026-08-15）：表已建、种子数据已入、B 站 Toy 已更新进入审核；运营改 `public.site_config` 任一 key 的 value 即可更新弹窗/推广内容，玩家刷新即生效。

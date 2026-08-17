@@ -7,9 +7,9 @@
 ## 0. 项目是什么
 
 「哈基杯-基狗对邦 · 挂机养成小游戏」：纯前端 H5 挂机游戏（类 Cookie Clicker），养哈基米/哈基汪两阵营对邦引流用。
-- 线上地址：`https://ea8df52043fd4121a761eed0a3e2c2c4.app.workbuddy.link/`（v0.7 已构建待部署；当前源码版本号见 index.html）
+- 线上入口（分享/推广用）：`https://www.bilibili.com/toy/hajimi-idle-public/index.html`（B 站 Toy 公开版；CloudStudio 地址 `https://ea8df52043fd4121a761eed0a3e2c2c4.app.workbuddy.link/` 为内部部署用，2026-08-15 起对外主入口改为 Toy）
 - GitHub 仓库：`https://github.com/wwyjingjing/hajimi-idle`（唯一版本源）
-- 云端后端：Supabase 项目 `sboaeygtztyubizypvrc`（仅排行榜/账号用，anon key 在 `game/config.js`）
+- 云端后端：Supabase 项目 `sboaeygtztyubizypvrc`（排行榜/账号 + 动态配置 site_config 表，anon key 在 `game/config.js`）
 
 ---
 
@@ -134,6 +134,7 @@ xcopy assets         deploy\assets /E /I /Y
 5. 玩家反馈「分数不上/不显示」：先让玩家**强制刷新**（旧缓存 bundle 的 upsert 被新授权拒绝是头号原因）；真有问题看浏览器 Console 的 `[排行榜]` 日志（rate implausible / player banned 等）。
 6. **人界/封神榜双榜（v0.8）**：`leaderboard` 视图 = 人界榜（`total < 1e18`），`leaderboard_immortal` 视图 = 封神榜（`total >= 1e18`，飞升玩家；2026-08-15 前端展示名由「仙界」改「封神榜」，**视图名不改**），前端「🐉 封神榜」tab 查该视图。两个视图**必须同步维护**：改人界榜过滤条件时封神榜视图也要对应改；绝对上限 1e24（通关目标），**不要再降回 1e18**（会重新封顶飞升玩家）。
 7. 防作弊完整机制见 `spec/issues/08-leaderboard-security-ops.md`（含监控 SQL、拉黑 SOP、排查手册、双榜设计日志），改动前必读。
+8. **远端运营配置（site_config）**：推广位/看板/分享/应援地址/新闻已由 `docs/site-config-schema.sql` 的 `site_config` 表托管（2026-08-15 新增）。**改这些内容不要动代码**——直接 `update public.site_config set value = '...'::jsonb where key = '...'` 即可，玩家刷新即生效。前端覆盖逻辑在 `core.applySiteConfig`（白名单 key + 值校验），改它需同步 `core.test.js` 用例；新增 key 需同时改 core.js 白名单 + SQL 种子 + 文档。
 
 ---
 
