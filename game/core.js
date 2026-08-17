@@ -638,6 +638,12 @@ export function applySiteConfig(cfg, rows) {
       case 'news':
         if (Array.isArray(v) && v.length) cfg.news = v;
         break;
+      case 'leaderboard':
+        // 排行榜总开关：{"enabled": true|false}；false=维护中（前端显示维护提示+不上报）
+        if (v && typeof v === 'object' && !Array.isArray(v) && typeof v.enabled === 'boolean') {
+          cfg.leaderboard = { ...cfg.leaderboard, enabled: v.enabled };
+        }
+        break;
       default: break;
     }
   }

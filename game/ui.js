@@ -729,9 +729,14 @@ async function initSupabase() {
     sb = window.supabase.createClient(CONFIG.supabase.url, CONFIG.supabase.anonKey, {
       auth: { persistSession: true, autoRefreshToken: true },
     });
-    // 远端运营配置（推广位/看板/分享/新闻）：anon 只读即可，不依赖匿名登录；
+    // 远端运营配置（推广位/看板/分享/新闻/排行榜开关）：anon 只读即可，不依赖匿名登录；
     // 失败静默回退本地 config.js（游戏必须离线可玩）。
     await loadSiteConfig();
+    // 排行榜未启用（维护中）：只读配置，不匿名登录、不上报
+    if (!CONFIG.leaderboard.enabled) {
+      console.log('[排行榜] 维护中（site_config 或本地配置 enabled=false），不启用账号与上报');
+      return;
+    }
     let session = (await sb.auth.getSession()).data.session;
     if (!session) session = (await sb.auth.signInAnonymously()).data.session;
     if (!session) {
@@ -975,6 +980,14 @@ function bindEvents() {
   $('btn-download').addEventListener('click', () => { if (lastShareCanvas) downloadImage(lastShareCanvas); });
 
   $('btn-leaderboard').addEventListener('click', () => {
+    // 排行榜维护中（enabled=false）：显示维护提示，不展示榜单
+    if (!CONFIG.leaderboard.enabled) {
+      $('lb-list').innerHTML = '<div style="padding:28px 14px;color:#999;text-align:center;">🔧 排行榜维护中<br><span style="font-size:12px;">敬请期待，马上回来！</span></div>';
+      $('lb-mine').textContent = '';
+      updateLbTabs();
+      $('overlay-leaderboard').classList.add('show');
+      return;
+    }
     if (!nickname) { showNicknameModal(); return; }
     updateLbTabs();
     renderLeaderboard();
@@ -1116,14 +1129,8 @@ function init() {
   setInterval(onTick, 1000);
   renderNews();
   setInterval(renderNews, 4000);
-  if (CONFIG.leaderboard.enabled) {
-    initSupabase(); // 匿名登录 + 玩家档案（失败静默，不影响游戏）
-    window.addEventListener('pagehide', () => submitScore(true));
-  } else {
-    // 排行榜关闭：隐藏入口按钮，不上报（B站版本隐藏排行榜）
-    const lbBtn = $('btn-leaderboard');
-    if (lbBtn) lbBtn.style.display = 'none';
-  }
+  initSupabase(); // 初始化 supabase client + 拉 site_config +（enabled 时）匿名登录/档案；失败静默
+  window.addEventListener('pagehide', () => { if (CONFIG.leaderboard.enabled) submitScore(true); });
 }
 
 init();

@@ -22,7 +22,9 @@ export const CONFIG = {
     anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNib2FleWd0enR5dWJpenlwdnJjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY3ODgxNzYsImV4cCI6MjEwMjM2NDE3Nn0.RXOOx7G34D32TK40UGNuE4bngdfdsZRSYJ8Fx0JaMoU',
   },
   leaderboard: {
-    enabled: false,               // ★ 总开关：false=隐藏排行榜入口+停止上报（B站版本用）；true=显示（需重新部署）
+    enabled: false,               // ★ 排行榜总开关：false=维护中（点击显示维护提示+不上报）；true=正常显示。
+    //    线上以 site_config 表 leaderboard key 为准（运营数据库改，无需重新部署）；
+    //    此处为本地兜底（B站版默认 false=维护中）。解锁：update site_config set value='{"enabled":true}' where key='leaderboard';
     submitIntervalMs: 10 * 1000,  // 每 10 秒上报一次（关页/切后台另即时上报）
     topN: 100,                    // 榜单前 100 名
   },

@@ -50,10 +50,13 @@ insert into public.site_config (key, value) values
   "🏠 给每只哈基米一个家，从下水道到时空位面。",
   "📣 关爱小动物，从点一下\"喂食\"开始。",
   "🌟 亿亿亿哈基米不是梦，是保护动物的小目标。"
-]'::jsonb)
+]'::jsonb),
+('leaderboard', '{"enabled": false}'::jsonb)
 on conflict (key) do update set value = excluded.value, updated_at = now();
 
 -- 5) 运营更新示例（改任一 key 的 value 即可，无需重新构建/部署游戏）：
 --    update public.site_config set value = '[...]'::jsonb where key = 'featured';
 --    update public.site_config set value = '{"url":"...","group":"..."}'::jsonb where key = 'board';
+--    ★ 排行榜解锁：update public.site_config set value = '{"enabled": true}'::jsonb where key = 'leaderboard';
+--      （改回维护中：value = '{"enabled": false}'；前端下次启动/刷新自动生效）
 --    前端下次启动（或刷新页面）自动拉取最新内容。

@@ -28,7 +28,9 @@ const CONFIG = {
     anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNib2FleWd0enR5dWJpenlwdnJjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY3ODgxNzYsImV4cCI6MjEwMjM2NDE3Nn0.RXOOx7G34D32TK40UGNuE4bngdfdsZRSYJ8Fx0JaMoU',
   },
   leaderboard: {
-    enabled: false,               // ★ 总开关：false=隐藏排行榜入口+停止上报（B站版本用）；true=显示（需重新部署）
+    enabled: false,               // ★ 排行榜总开关：false=维护中（点击显示维护提示+不上报）；true=正常显示。
+    //    线上以 site_config 表 leaderboard key 为准（运营数据库改，无需重新部署）；
+    //    此处为本地兜底（B站版默认 false=维护中）。解锁：update site_config set value='{"enabled":true}' where key='leaderboard';
     submitIntervalMs: 10 * 1000,  // 每 10 秒上报一次（关页/切后台另即时上报）
     topN: 100,                    // 榜单前 100 名
   },
@@ -896,6 +898,12 @@ function applySiteConfig(cfg, rows) {
       case 'news':
         if (Array.isArray(v) && v.length) cfg.news = v;
         break;
+      case 'leaderboard':
+        // 排行榜总开关：{"enabled": true|false}；false=维护中（前端显示维护提示+不上报）
+        if (v && typeof v === 'object' && !Array.isArray(v) && typeof v.enabled === 'boolean') {
+          cfg.leaderboard = { ...cfg.leaderboard, enabled: v.enabled };
+        }
+        break;
       default: break;
     }
   }
@@ -1624,9 +1632,14 @@ async function initSupabase() {
     sb = window.supabase.createClient(CONFIG.supabase.url, CONFIG.supabase.anonKey, {
       auth: { persistSession: true, autoRefreshToken: true },
     });
-    // 远端运营配置（推广位/看板/分享/新闻）：anon 只读即可，不依赖匿名登录；
+    // 远端运营配置（推广位/看板/分享/新闻/排行榜开关）：anon 只读即可，不依赖匿名登录；
     // 失败静默回退本地 config.js（游戏必须离线可玩）。
     await loadSiteConfig();
+    // 排行榜未启用（维护中）：只读配置，不匿名登录、不上报
+    if (!CONFIG.leaderboard.enabled) {
+      console.log('[排行榜] 维护中（site_config 或本地配置 enabled=false），不启用账号与上报');
+      return;
+    }
     let session = (await sb.auth.getSession()).data.session;
     if (!session) session = (await sb.auth.signInAnonymously()).data.session;
     if (!session) {
@@ -1870,6 +1883,14 @@ function bindEvents() {
   $('btn-download').addEventListener('click', () => { if (lastShareCanvas) downloadImage(lastShareCanvas); });
 
   $('btn-leaderboard').addEventListener('click', () => {
+    // 排行榜维护中（enabled=false）：显示维护提示，不展示榜单
+    if (!CONFIG.leaderboard.enabled) {
+      $('lb-list').innerHTML = '<div style="padding:28px 14px;color:#999;text-align:center;">🔧 排行榜维护中<br><span style="font-size:12px;">敬请期待，马上回来！</span></div>';
+      $('lb-mine').textContent = '';
+      updateLbTabs();
+      $('overlay-leaderboard').classList.add('show');
+      return;
+    }
     if (!nickname) { showNicknameModal(); return; }
     updateLbTabs();
     renderLeaderboard();
@@ -2011,14 +2032,8 @@ function init() {
   setInterval(onTick, 1000);
   renderNews();
   setInterval(renderNews, 4000);
-  if (CONFIG.leaderboard.enabled) {
-    initSupabase(); // 匿名登录 + 玩家档案（失败静默，不影响游戏）
-    window.addEventListener('pagehide', () => submitScore(true));
-  } else {
-    // 排行榜关闭：隐藏入口按钮，不上报（B站版本隐藏排行榜）
-    const lbBtn = $('btn-leaderboard');
-    if (lbBtn) lbBtn.style.display = 'none';
-  }
+  initSupabase(); // 初始化 supabase client + 拉 site_config +（enabled 时）匿名登录/档案；失败静默
+  window.addEventListener('pagehide', () => { if (CONFIG.leaderboard.enabled) submitScore(true); });
 }
 
 init();
